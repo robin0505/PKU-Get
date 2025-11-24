@@ -1,6 +1,6 @@
 # PKU-Get | 未名拾课
 
-停止手动下载课程资料。让 PKU-Get 帮你完成这件事。
+停止点击一千次下载。让 PKU-Get 帮你完成这件事。
 
 ![image-20251124174414777](./gui/public/1.png)
 
@@ -111,15 +111,13 @@ PKU-AutoDownloader/
 
 ### 🤝 常见问题
 
-<details>
-<summary><b>Q: 我的密码安全吗？</b></summary>
+Q: 我的密码安全吗？
 
 A: 密码仅存储在本地配置文件中，不会上传到任何服务器。建议设置适当的文件权限保护配置文件。
 
-<details>
-<summary><b>Q: MacOS上报错：You must enable 'Allow remote automation'</b></summary>
+Q: MacOS上报错：You must enable 'Allow remote automation'
 
-MacOS上需要额外的设置。
+A: MacOS上需要额外的设置。
 1. 打开开发者模式
 - 首先打开我的浏览器(Safari),默认情况下没有打开开发者模式
 - 点击左上角的Safari选择偏好设置
@@ -132,20 +130,18 @@ MacOS上需要额外的设置。
 详细教程参见：https://blog.csdn.net/weixin_44786530/article/details/129729261
 
 
-<details>
-<summary><b>Q: 支持哪些浏览器？</b></summary>
+Q: 支持哪些浏览器？
 
 A: Chrome、Firefox、Edge 和 Safari。由于众所周知的原因Chrome的驱动可能难以下载，建议Windows用户优先选择Edge。
 
-<details>
-<summary><b>Q: 下载失败怎么办？</b></summary>
+Q: 下载失败怎么办？
 
+A:
 1. 确认浏览器驱动已正确安装
 2. 尝试重启
 3. 把日志发给我（
 
-<details>
-<summary><b>Q: 可以定时自动同步吗？</b></summary>
+Q: 可以定时自动同步吗？
 
 A: 在设置中启用"启动时自动同步"，或使用系统定时任务（如 cron）定期运行命令行版本。
 
@@ -184,8 +180,6 @@ Tired of:
 - Visual card-based course management
 - Real-time download progress tracking
 - Clear file statistics at a glance
-
-![image-20251124175243472](C:\Users\robin\AppData\Roaming\Typora\typora-user-images\image-20251124175243472.png)
 
 #### ⚡ **Smart Download Engine**
 - **Concurrent downloads**: Download multiple files simultaneously for blazing speed
@@ -263,15 +257,13 @@ PKU-AutoDownloader/
 
 ### 🤝 FAQ
 
-<details>
-<summary><b>Q: Is my password safe?</b></summary>
+Q: Is my password safe?
 
 A: Your password is stored only in the local config file and never uploaded to any server. It's recommended to set appropriate file permissions to protect your config.
 
-<details>
-<summary><b>Q: macOS Error: You must enable 'Allow remote automation'</b></summary>
+Q: macOS Error: You must enable 'Allow remote automation'
 
-Additional setup is required on macOS:
+A: Additional setup is required on macOS:
 1. Enable Developer Mode
 - First, open Safari (developer mode is disabled by default)
 - Click Safari in the menu bar and select Preferences
@@ -284,20 +276,17 @@ Additional setup is required on macOS:
 For detailed tutorial, see: https://blog.csdn.net/weixin_44786530/article/details/129729261
 
 
-<details>
-<summary><b>Q: Which browsers are supported?</b></summary>
+Q: Which browsers are supported?
 
 A: Chrome, Firefox, Edge, and Safari. Due to well-known reasons, Chrome drivers may be difficult to download. Windows users are recommended to use Edge.
 
-<details>
-<summary><b>Q: What if downloads fail?</b></summary>
+Q: What if downloads fail?
 
 1. Verify browser drivers are installed correctly
 2. Try restarting the application
 3. Send me the logs (
 
-<details>
-<summary><b>Q: Can I schedule automatic syncs?</b></summary>
+Q: Can I schedule automatic syncs?
 
 A: Enable "Auto-sync on startup" in settings, or use system schedulers (like cron) to run the CLI version periodically.
 

@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-gradient" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0B1120"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="neon-gradient" x1="100" y1="100" x2="400" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg-gradient)"/>
+  <path d="M80 160 L200 160 L240 120 L432 120 C454.091 120 472 137.909 472 160 V392 C472 414.091 454.091 432 432 432 H80 C57.9086 432 40 414.091 40 392 V200 C40 177.909 57.9086 160 80 160 Z" fill="#1E293B" fill-opacity="0.5" stroke="url(#neon-gradient)" stroke-width="12"/>
+  <path d="M80 200 H432 C454.091 200 472 217.909 472 240 V392 C472 414.091 454.091 432 432 432 H80 C57.9086 432 40 414.091 40 392 V240 C40 217.909 57.9086 200 80 200 Z" fill="#3B82F6" fill-opacity="0.1" stroke="url(#neon-gradient)" stroke-width="12" filter="url(#glow)"/>
+  <g filter="url(#glow)">
+    <rect x="236" y="240" width="40" height="100" rx="20" fill="white"/>
+    <path d="M180 320 L256 410 L332 320" stroke="white" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <circle cx="440" cy="230" r="8" fill="#3B82F6" filter="url(#glow)"/>
+  <circle cx="440" cy="260" r="8" fill="#8B5CF6" filter="url(#glow)"/>
+  <circle cx="440" cy="290" r="8" fill="#10B981" filter="url(#glow)"/>
+</svg>

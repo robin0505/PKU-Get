@@ -339,7 +339,12 @@ class Downloader:
                     area_dir.mkdir(parents=True, exist_ok=True)
 
                 logger.info(f"\n  Processing: {area_name}")
-                self._process_content_area(area['url'], area_dir)
+                
+                # Check for notification/announcement tab
+                if "公告" in area_name or "通知" in area_name or "Announcements" in area_name:
+                    self._process_notifications(area['url'], area_dir)
+                else:
+                    self._process_content_area(area['url'], area_dir)
 
         except requests.RequestException as e:
             logger.error(f"Network error processing course {course_name}: {e}")
@@ -802,3 +807,107 @@ class Downloader:
         except Exception as e:
             logger.error(f"Failed to generate sync report: {e}")
             return None
+
+    def _process_notifications(self, url: str, local_dir: Path):
+        """Process announcements/notifications and save as Markdown."""
+        try:
+            response = self.session.get(url, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Try to find announcement list (Standard Blackboard structure)
+            container = soup.find('ul', id='announcementList')
+            if not container:
+                # Fallback for some customized themes
+                container = soup.find('div', id='announcementList')
+            
+            if not container:
+                logger.warning(f"    No announcement list found at {url}")
+                return
+
+            items = container.find_all('li', recursive=False)
+            if not items:
+                logger.info("    No announcements found.")
+                return
+
+            local_dir.mkdir(parents=True, exist_ok=True)
+            count = 0
+
+            for item in items:
+                # 1. Extract Title
+                title_elem = item.find('h3')
+                if not title_elem:
+                    # Sometimes it's just a div or span with a specific class
+                    title_elem = item.find('div', class_='item_header')
+                
+                title = title_elem.get_text(strip=True) if title_elem else "Untitled"
+                
+                # 2. Extract Metadata (Date, Author)
+                meta_info = []
+                details = item.find('div', class_='details')
+                date_str = ""
+                if details:
+                    # Text like: "发布时间: 2025年11月15日 星期六 上午09时47分03秒 CST"
+                    full_meta = details.get_text(strip=True)
+                    meta_info.append(full_meta)
+                    
+                    # Try to extract a clean date for filename
+                    # Look for YYYY-MM-DD or YYYY年MM月DD日
+                    date_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', full_meta)
+                    if date_match:
+                        date_str = f"{date_match.group(1)}-{date_match.group(2).zfill(2)}-{date_match.group(3).zfill(2)}"
+                    else:
+                        # Fallback to current time if date parsing fails
+                        date_str = datetime.now().strftime("%Y-%m-%d")
+
+                # 3. Extract Content
+                # Content is usually in a div following the header/details, often with no class or 'vtbegenerated'
+                # We'll look for the container that holds the actual message
+                content_html = ""
+                # Blackboard often puts content in a div with id starting with 'announcementMsg_'
+                msg_div = item.find('div', id=re.compile(r'^announcementMsg_'))
+                if not msg_div:
+                    # Fallback: look for any div that looks like content
+                    pass
+                
+                if msg_div:
+                    # Convert HTML to basic Markdown-ish text
+                    content_text = msg_div.get_text('\n', strip=True)
+                    
+                    # Also try to find links/attachments in the message
+                    links = msg_div.find_all('a', href=True)
+                    attachments = []
+                    for link in links:
+                        href = link['href']
+                        text = link.get_text(strip=True)
+                        full_link = urljoin(url, href)
+                        attachments.append(f"[{text}]({full_link})")
+                    
+                    if attachments:
+                        content_text += "\n\n### Attachments\n" + "\n".join(f"- {a}" for a in attachments)
+                else:
+                    content_text = "[Could not extract content]"
+
+                # 4. Save as Markdown
+                safe_title = self._sanitize_name(title)
+                filename = f"{date_str}_{safe_title}.md"
+                file_path = local_dir / filename
+                
+                md_content = f"# {title}\n\n"
+                if meta_info:
+                    md_content += f"> {' | '.join(meta_info)}\n\n"
+                md_content += content_text
+                
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(md_content)
+                    count += 1
+                    logger.info(f"      [NOTE] Saved: {filename}")
+                except Exception as e:
+                    logger.error(f"      Failed to save notification {filename}: {e}")
+
+            if count > 0:
+                logger.info(f"    Saved {count} notifications.")
+
+        except Exception as e:
+            logger.error(f"    Error processing notifications at {url}: {e}")

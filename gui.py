@@ -924,6 +924,59 @@ class Api:
             gui_logger.error(f"Failed to refresh stats: {e}")
             return {'success': False, 'error': str(e)}
 
+    def get_course_notifications(self, course_id):
+        """Get list of notifications for a course"""
+        try:
+            config = self.load_config()
+            download_dir = Path(config['download_dir'])
+            
+            # Find course folder
+            course = next((c for c in self.courses if c['id'] == course_id), None)
+            if not course:
+                return {'success': False, 'error': 'Course not found'}
+            
+            # Determine folder name (alias or name)
+            folder_name = course.get('alias') or course.get('name')
+            if not folder_name:
+                return {'success': False, 'error': 'Course folder name unknown'}
+                
+            course_dir = download_dir / folder_name
+            notif_dir = course_dir / 'Notifications'
+            
+            if not notif_dir.exists():
+                return {'success': True, 'notifications': []}
+                
+            notifications = []
+            for entry in notif_dir.glob('*.md'):
+                try:
+                    # Parse filename: YYYY-MM-DD_Title.md
+                    stem = entry.stem
+                    parts = stem.split('_', 1)
+                    date = parts[0] if len(parts) > 1 else ''
+                    title = parts[1] if len(parts) > 1 else stem
+                    
+                    # Read content
+                    with open(entry, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        
+                    notifications.append({
+                        'filename': entry.name,
+                        'title': title,
+                        'date': date,
+                        'content': content,
+                        'path': str(entry)
+                    })
+                except Exception as e:
+                    gui_logger.error(f"Error parsing notification {entry}: {e}")
+            
+            # Sort by date descending
+            notifications.sort(key=lambda x: x['date'], reverse=True)
+            
+            return {'success': True, 'notifications': notifications}
+        except Exception as e:
+            gui_logger.error(f"Failed to get notifications: {e}")
+            return {'success': False, 'error': str(e)}
+
 def main():
     api = Api()
     

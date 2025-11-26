@@ -35,3 +35,5 @@ venv.bak/
 # Logs
 *.log
 downloader.log
+
+gui/node_modules/

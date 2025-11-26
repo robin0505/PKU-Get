@@ -342,8 +342,12 @@ class Downloader:
                 
                 # Check for notification/announcement tab
                 if "公告" in area_name or "通知" in area_name or "Announcements" in area_name:
-                    self._process_notifications(area['url'], area_dir)
+                    logger.info(f"  [NOTIFICATIONS] Processing notifications for {area_name}...")
+                    # Force notifications into a specific folder
+                    notification_dir = course_dir / "Notifications"
+                    self._process_notifications(area['url'], notification_dir)
                 else:
+                    logger.info(f"  [FILES] Processing files for {area_name}...")
                     self._process_content_area(area['url'], area_dir)
 
         except requests.RequestException as e:

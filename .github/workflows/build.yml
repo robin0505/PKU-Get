@@ -1,0 +1,105 @@
+name: Build PKU-Get Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v1.0.0 这样的标签时触发
+  workflow_dispatch:  # 允许手动触发
+  pull_request:  # PR时也构建以验证
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: PKU-Get-Windows.exe
+            executable_path: dist/PKU-Get.exe
+          - os: macos-13  # Intel Mac
+            artifact_name: PKU-Get-macOS-Intel
+            executable_path: dist/PKU-Get
+          - os: macos-14  # Apple Silicon (M1/M2)
+            artifact_name: PKU-Get-macOS-AppleSilicon
+            executable_path: dist/PKU-Get
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: gui/package-lock.json
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Build application
+        run: uv run python build.py
+        env:
+          PYTHONIOENCODING: utf-8
+      
+      - name: Verify build output
+        shell: bash
+        run: |
+          if [ -f "${{ matrix.executable_path }}" ]; then
+            echo "✅ Build successful!"
+            ls -lh "${{ matrix.executable_path }}"
+          else
+            echo "❌ Build failed: executable not found"
+            exit 1
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.executable_path }}
+          if-no-files-found: error
+  
+  # 创建GitHub Release（仅在tag推送时）
+  create-release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Display structure of downloaded artifacts
+        run: ls -R artifacts
+      
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -lh release/
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -85,6 +85,7 @@ export const translations = {
     downloaded: 'Downloaded',
     skipped: 'Skipped',
     failed: 'Failed',
+    newNotifications: 'New Notifications',
 
     // Sync Report
     syncComplete: 'Sync Complete!',
@@ -193,6 +194,7 @@ export const translations = {
     downloaded: '已下载',
     skipped: '已跳过',
     failed: '失败',
+    newNotifications: '新增通知',
 
     // Sync Report
     syncComplete: '同步完成！',

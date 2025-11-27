@@ -127,6 +127,11 @@ def _get_chrome(headless: bool = True):
     options.add_argument('--log-level=3')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
 
+    # Use cached driver if available, skip version check for speed  
+    try:
+        service = ChromeService(ChromeDriverManager(cache_valid_range=7).install())
+    except Exception as e:
+        logger.warning(f"ChromeDriver cache failed, downloading latest: {e}")
     service = ChromeService(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.implicitly_wait(5)
@@ -139,6 +144,11 @@ def _get_firefox(headless: bool = True):
     options.add_argument('--width=1280')
     options.add_argument('--height=800')
 
+    # Use cached driver if available, skip version check for speed
+    try:
+        service = FirefoxService(GeckoDriverManager(cache_valid_range=7).install())
+    except Exception as e:
+        logger.warning(f"GeckoDriver cache failed, downloading latest: {e}")
     service = FirefoxService(GeckoDriverManager().install())
     driver = webdriver.Firefox(service=service, options=options)
     driver.implicitly_wait(5)

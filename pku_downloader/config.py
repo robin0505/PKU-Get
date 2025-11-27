@@ -77,7 +77,7 @@ timeout = 30
 course_config_path = {course_config_path}
 """
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, skip_validation: bool = False):
         self.config = configparser.ConfigParser()
         self.config_path = self._find_config(config_path)
         
@@ -85,7 +85,8 @@ course_config_path = {course_config_path}
             raise FileNotFoundError("No config.ini found.")
             
         self.config.read(self.config_path, encoding='utf-8')
-        self._validate()
+        if not skip_validation:
+            self._validate()
     
     def _find_config(self, config_path: str = None) -> Path:
         """Find the damn config file."""

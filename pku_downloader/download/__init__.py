@@ -126,7 +126,7 @@ class Downloader:
     def __init__(self, session: requests.Session, config):
         self.session = session
         self.config = config
-        self.stats = {'downloaded': 0, 'skipped': 0, 'failed': 0}
+        self.stats = {'downloaded': 0, 'skipped': 0, 'failed': 0, 'notifications_new': 0}
 
         # Sync report tracking
         self.sync_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -339,7 +339,16 @@ class Downloader:
                     area_dir.mkdir(parents=True, exist_ok=True)
 
                 logger.info(f"\n  Processing: {area_name}")
-                self._process_content_area(area['url'], area_dir)
+                
+                # Check for notification/announcement tab
+                if "公告" in area_name or "通知" in area_name or "Announcements" in area_name:
+                    logger.info(f"  [NOTIFICATIONS] Processing notifications for {area_name}...")
+                    # Force notifications into a specific folder
+                    notification_dir = course_dir / "Notifications"
+                    self._process_notifications(area['url'], notification_dir)
+                else:
+                    logger.info(f"  [FILES] Processing files for {area_name}...")
+                    self._process_content_area(area['url'], area_dir)
 
         except requests.RequestException as e:
             logger.error(f"Network error processing course {course_name}: {e}")
@@ -802,3 +811,224 @@ class Downloader:
         except Exception as e:
             logger.error(f"Failed to generate sync report: {e}")
             return None
+
+    def _process_notifications(self, url: str, local_dir: Path):
+        """Process announcements/notifications and save as Markdown."""
+        try:
+            response = self.session.get(url, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Try to find announcement list (Standard Blackboard structure)
+            container = soup.find('ul', id='announcementList')
+            if not container:
+                # Fallback for some customized themes
+                container = soup.find('div', id='announcementList')
+            
+            if not container:
+                logger.warning(f"    No announcement list found at {url}")
+                return
+
+            items = container.find_all('li', recursive=False)
+            if not items:
+                logger.info("    No announcements found.")
+                return
+
+            local_dir.mkdir(parents=True, exist_ok=True)
+            # Create assets directory for images
+            assets_dir = local_dir / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            
+            count = 0
+
+            for item in items:
+                # 1. Extract Title
+                title_elem = item.find('h3')
+                if not title_elem:
+                    # Sometimes it's just a div or span with a specific class
+                    title_elem = item.find('div', class_='item_header')
+                
+                title = title_elem.get_text(strip=True) if title_elem else "Untitled"
+                
+                # 2. Extract Metadata (Date, Author)
+                meta_info = []
+                details = item.find('div', class_='details')
+                date_str = ""
+                if details:
+                    # Text like: "发布时间: 2025年11月15日 星期六 上午09时47分03秒 CST"
+                    full_meta = details.get_text(strip=True)
+                    meta_info.append(full_meta)
+                    
+                    # Try to extract a clean date for filename
+                    # Look for YYYY-MM-DD or YYYY年MM月DD日
+                    date_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', full_meta)
+                    if date_match:
+                        date_str = f"{date_match.group(1)}-{date_match.group(2).zfill(2)}-{date_match.group(3).zfill(2)}"
+                    else:
+                        # Fallback to current time if date parsing fails
+                        date_str = datetime.now().strftime("%Y-%m-%d")
+
+                # 3. Extract Content and convert HTML to Markdown
+                msg_div = item.find('div', id=re.compile(r'^announcementMsg_'))
+                if not msg_div:
+                    # Fallback: try to find content div
+                    msg_div = item.find('div', class_='vtbegenerated')
+                
+                if msg_div:
+                    # Download images first and replace URLs
+                    safe_title = self._sanitize_name(title)
+                    img_prefix = f"{date_str}_{safe_title}"
+                    content_markdown = self._html_to_markdown_with_images(
+                        msg_div, url, assets_dir, img_prefix
+                    )
+                else:
+                    content_markdown = "[Could not extract content]"
+
+                # 4. Save as Markdown
+                filename = f"{date_str}_{safe_title}.md"
+                file_path = local_dir / filename
+                
+                # Skip if notification already exists
+                if file_path.exists():
+                    logger.info(f"      [SKIP] Notification already exists: {filename}")
+                    self.stats['skipped'] += 1
+                    continue
+                
+                md_content = f"# {title}\n\n"
+                if meta_info:
+                    md_content += f"> {' | '.join(meta_info)}\n\n"
+                md_content += content_markdown
+                
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(md_content)
+                    count += 1
+                    self.stats['notifications_new'] = self.stats.get('notifications_new', 0) + 1
+                    self.stats['downloaded'] += 1
+                    logger.info(f"      [NOTE] Saved: {filename}")
+                except Exception as e:
+                    logger.error(f"      Failed to save notification {filename}: {e}")
+                    self.stats['failed'] += 1
+
+            if count > 0:
+                logger.info(f"    Saved {count} notifications.")
+
+        except Exception as e:
+            logger.error(f"    Error processing notifications at {url}: {e}")
+    
+    def _html_to_markdown_with_images(self, html_elem, base_url: str, assets_dir: Path, img_prefix: str) -> str:
+        """Convert HTML content to Markdown, downloading images and updating references."""
+        # Find and download all images
+        images = html_elem.find_all('img')
+        img_count = 0
+        
+        if images:
+            logger.info(f"        Found {len(images)} images in notification.")
+        
+        for img in images:
+            img_src = img.get('src')
+            if not img_src:
+                continue
+                
+            # Convert relative URLs to absolute
+            img_url = urljoin(base_url, img_src)
+            
+            # Download image
+            try:
+                logger.info(f"        Downloading image: {img_url}")
+                img_response = self.session.get(img_url, timeout=30)
+                img_response.raise_for_status()
+                
+                # Determine file extension from content type or URL
+                content_type = img_response.headers.get('Content-Type', '')
+                ext = mimetypes.guess_extension(content_type.split(';')[0].strip())
+                if not ext or ext == '.jpe':
+                    # Fallback to URL extension
+                    url_ext = Path(img_url.split('?')[0]).suffix
+                    ext = url_ext if url_ext else '.jpg'
+                
+                # Generate unique filename
+                img_filename = f"{img_prefix}_img{img_count}{ext}"
+                img_path = assets_dir / img_filename
+                
+                # Save image
+                with open(img_path, 'wb') as f:
+                    f.write(img_response.content)
+                
+                # Replace img tag with markdown image syntax
+                img_alt = img.get('alt', 'image')
+                # Use relative path from notification markdown file to assets folder
+                img_markdown = f"![{img_alt}](assets/{img_filename})"
+                img.replace_with(img_markdown)
+                
+                img_count += 1
+                logger.info(f"        Saved image to: {img_filename}")
+                
+            except Exception as e:
+                logger.warning(f"        Failed to download image {img_url}: {e}")
+                # Keep the original URL as fallback
+                img_alt = img.get('alt', 'image')
+                img.replace_with(f"![{img_alt}]({img_url})")
+        
+        # Convert HTML to text-based markdown
+        content = self._simple_html_to_markdown(html_elem)
+        return content
+    
+    def _simple_html_to_markdown(self, html_elem) -> str:
+        """Convert HTML to simple markdown format."""
+        # Make a copy to avoid modifying the original
+        from copy import copy
+        
+        # Convert <p> to paragraphs
+        for p in html_elem.find_all('p'):
+            p.insert_before('\n')
+            p.insert_after('\n')
+        
+        # Convert <br> to newlines
+        for br in html_elem.find_all('br'):
+            br.replace_with('\n')
+        
+        # Convert <strong> and <b> to bold
+        for tag in html_elem.find_all(['strong', 'b']):
+            text = tag.get_text()
+            tag.replace_with(f"**{text}**")
+        
+        # Convert <em> and <i> to italic
+        for tag in html_elem.find_all(['em', 'i']):
+            text = tag.get_text()
+            tag.replace_with(f"*{text}*")
+        
+        # Convert <a> to markdown links
+        for a in html_elem.find_all('a', href=True):
+            href = a.get('href')
+            text = a.get_text(strip=True)
+            if text:
+                a.replace_with(f"[{text}]({href})")
+            else:
+                a.replace_with(href)
+        
+        # Convert headings
+        for i in range(1, 7):
+            for h in html_elem.find_all(f'h{i}'):
+                text = h.get_text(strip=True)
+                h.replace_with(f"\n{'#' * i} {text}\n")
+        
+        # Convert lists
+        for ul in html_elem.find_all('ul'):
+            for li in ul.find_all('li', recursive=False):
+                li_text = li.get_text(strip=True)
+                li.replace_with(f"- {li_text}\n")
+        
+        for ol in html_elem.find_all('ol'):
+            for idx, li in enumerate(ol.find_all('li', recursive=False), 1):
+                li_text = li.get_text(strip=True)
+                li.replace_with(f"{idx}. {li_text}\n")
+        
+        # Get final text content
+        text = html_elem.get_text('\n')
+        
+        # Clean up excessive newlines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
+

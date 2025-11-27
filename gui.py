@@ -91,7 +91,9 @@ class Api:
         self.courses = []
         self.session = None
         self.driver = None
+        self._cookies_path = self._config_path.parent / 'session_cookies.json'
         self._pending_config = None  # 🔑 用于延迟保存配置，只在登录成功后保存
+        self._load_session_cookies()
 
     def set_window(self, window):
         self._window = window
@@ -121,7 +123,68 @@ class Api:
                 json.dump(current, f)
         except Exception as e:
             gui_logger.error(f"Failed to save state: {e}")
+    def _save_session_cookies(self):
+        """保存session cookies到文件"""
+        if not self.session:
+            return
+        try:
+            cookies_data = {
+                'cookies': self.session.cookies.get_dict(),
+                'headers': dict(self.session.headers),
+                'saved_at': datetime.now().isoformat()
+            }
+            
+            with open(self._cookies_path, 'w', encoding='utf-8') as f:
+                json.dump(cookies_data, f, indent=2)
+            
+            gui_logger.info("Session cookies saved successfully")
+        except Exception as e:
+            gui_logger.error(f"Failed to save session cookies: {e}")
 
+    def _load_session_cookies(self):
+        """ 从文件加载session cookies """
+        if not self._cookies_path.exists():
+            gui_logger.debug("No saved session cookies found")
+            return
+        
+        try:
+            with open(self._cookies_path, 'r', encoding='utf-8') as f:
+                cookies_data = json.load(f)
+            
+            # 检查cookies是否过期(超过7天就认为过期)
+            saved_at = datetime.fromisoformat(cookies_data['saved_at'])
+            if (datetime.now() - saved_at).days > 7:
+                gui_logger.info("Saved session cookies expired (>7 days), will need to re-login")
+                return
+            
+            # 创建新session并恢复cookies
+            import requests
+            self.session = requests.Session()
+            
+            # 恢复cookies
+            for name, value in cookies_data['cookies'].items():
+                self.session.cookies.set(name, value)
+            
+            # 恢复headers
+            self.session.headers.update(cookies_data['headers'])
+            
+            gui_logger.info("Loaded saved session cookies successfully")
+            
+            # 🔑 验证session是否仍然有效(尝试访问课程页面)
+            try:
+                response = self.session.get('https://course.pku.edu.cn/webapps/portal/execute/tabs/tabAction', timeout=10)
+                if response.status_code == 200 and 'login' not in response.url.lower():
+                    gui_logger.info("Session cookies are still valid!")
+                else:
+                    gui_logger.warning("Session cookies expired, will need to re-login")
+                    self.session = None
+            except Exception as e:
+                gui_logger.warning(f"Failed to validate session: {e}, will need to re-login")
+                self.session = None
+                
+        except Exception as e:
+            gui_logger.error(f"Failed to load session cookies: {e}")
+            
     def get_init_state(self):
         """Called by frontend on mount to decide which view to show"""
         config = self.load_config()
@@ -173,7 +236,7 @@ class Api:
         """Load existing config or return defaults"""
         try:
             if self._config_path.exists():
-                cfg = Config(str(self._config_path))
+                cfg = Config(str(self._config_path), skip_validation=True)
                 return {
                     'username': cfg.get('username'),
                     'password': cfg.get('password'),
@@ -369,15 +432,17 @@ class Api:
                         gui_logger.info("Login successful, closing browser...")
                         self.driver.quit()
                         self.driver = None
+                    
+                    # 🔑 Save session cookies for next time
+                    self._save_session_cookies()
 
                     # 2. Fetch Metadata (available tabs for each course) - uses session, not browser
                     gui_logger.info("Loading course metadata...")
 
                     # 🔑 If config hasn't been saved yet (first login), save it now before creating Downloader
-                    if self._pending_config and not self._config_path.exists():
-                        gui_logger.info("First login detected, saving config before fetching metadata...")
+                    if self._pending_config:
+                        gui_logger.info("Login successful, saving credentials...")
                         self.save_config(self._pending_config)
-
                     cfg = Config(str(self._config_path))
                     downloader = Downloader(self.session, cfg)
                     self.courses = downloader.fetch_metadata(self.courses)
@@ -513,6 +578,9 @@ class Api:
                             gui_logger.info("Login successful, closing browser...")
                             self.driver.quit()
                             self.driver = None
+                        
+                        # 🔑 Save session cookies for next time
+                        self._save_session_cookies()
 
                     # Filter active courses (not skipped)
                     active_courses = [c for c in self.courses if not c.get('skip', False)]
@@ -538,7 +606,9 @@ class Api:
                     })
 
                     gui_logger.info("  Download completed!")
-                    if self._window: self._window.evaluate_js("window.syncComplete()")
+                    new_notifs = downloader.stats.get('notifications_new', 0)
+                    if self._window: 
+                        self._window.evaluate_js(f"window.syncComplete({new_notifs})")
                     return  # 成功，退出重试循环
 
                 except WebDriverException as e:
@@ -874,7 +944,7 @@ class Api:
             gui_logger.error(f"Error opening file: {e}")
             return {'success': False, 'error': str(e)}
 
-    def open_folder(self, course_name):
+    def open_folder(self, course_id):
         """Open course folder in file manager."""
         import subprocess
         import platform
@@ -882,7 +952,20 @@ class Api:
         try:
             config = self.load_config()
             download_dir = Path(config['download_dir']).resolve()
-            folder_path = (download_dir / course_name).resolve()
+            
+            # Find course by ID
+            course = next((c for c in self.courses if c['id'] == course_id), None)
+            if not course:
+                gui_logger.error(f"Course not found: {course_id}")
+                return {'success': False, 'error': 'Course not found'}
+            
+            # Determine folder name (alias or name)
+            folder_name = course.get('alias') or course.get('name')
+            if not folder_name:
+                gui_logger.error(f"Course has no name or alias: {course_id}")
+                return {'success': False, 'error': 'Course has no name'}
+            
+            folder_path = (download_dir / folder_name).resolve()
 
             # Security check: ensure folder is within download directory
             if not str(folder_path).startswith(str(download_dir)):
@@ -903,7 +986,7 @@ class Api:
             else:  # Linux and others
                 subprocess.run(['xdg-open', str(folder_path)], check=True)
 
-            gui_logger.info(f"Opened folder: {course_name}")
+            gui_logger.info(f"Opened folder: {folder_name} (ID: {course_id})")
             return {'success': True}
 
         except subprocess.CalledProcessError as e:
@@ -912,6 +995,51 @@ class Api:
         except Exception as e:
             gui_logger.error(f"Error opening folder: {e}")
             return {'success': False, 'error': str(e)}
+
+    def get_notification_image(self, course_name, image_path):
+        """Get notification image as base64 data URI for display in webview."""
+        import base64
+        import mimetypes
+        from urllib.parse import unquote
+        
+        try:
+            config = self.load_config()
+            download_dir = Path(config['download_dir']).resolve()
+            
+            # Decode URL-encoded path (e.g., %E8%AF%B7 -> 请)
+            image_path = unquote(image_path)
+            
+            # Construct the full image path
+            # image_path is relative like "assets/2024-11-27_Title_img0.jpg"
+            full_image_path = (download_dir / course_name / "Notifications" / image_path).resolve()
+            
+            # Security check: ensure file is within Notifications directory
+            notifications_dir = (download_dir / course_name / "Notifications").resolve()
+            if not str(full_image_path).startswith(str(notifications_dir)):
+                gui_logger.error(f"Security: Attempted to access file outside Notifications directory: {full_image_path}")
+                return None
+            
+            # Check if file exists
+            if not full_image_path.exists():
+                gui_logger.warning(f"Image not found: {full_image_path}")
+                return None
+            
+            # Read file and encode as base64
+            with open(full_image_path, 'rb') as f:
+                image_data = f.read()
+            
+            # Detect MIME type
+            mime_type = mimetypes.guess_type(str(full_image_path))[0] or 'application/octet-stream'
+            
+            # Create data URI
+            base64_data = base64.b64encode(image_data).decode('utf-8')
+            data_uri = f"data:{mime_type};base64,{base64_data}"
+            
+            return data_uri
+            
+        except Exception as e:
+            gui_logger.error(f"Error loading image {image_path}: {e}")
+            return None
 
     def refresh_stats(self):
         """Refresh local file statistics"""
@@ -922,6 +1050,59 @@ class Api:
             return {'success': True, 'local_stats': local_stats}
         except Exception as e:
             gui_logger.error(f"Failed to refresh stats: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def get_course_notifications(self, course_id):
+        """Get list of notifications for a course"""
+        try:
+            config = self.load_config()
+            download_dir = Path(config['download_dir'])
+            
+            # Find course folder
+            course = next((c for c in self.courses if c['id'] == course_id), None)
+            if not course:
+                return {'success': False, 'error': 'Course not found'}
+            
+            # Determine folder name (alias or name)
+            folder_name = course.get('alias') or course.get('name')
+            if not folder_name:
+                return {'success': False, 'error': 'Course folder name unknown'}
+                
+            course_dir = download_dir / folder_name
+            notif_dir = course_dir / 'Notifications'
+            
+            if not notif_dir.exists():
+                return {'success': True, 'notifications': []}
+                
+            notifications = []
+            for entry in notif_dir.glob('*.md'):
+                try:
+                    # Parse filename: YYYY-MM-DD_Title.md
+                    stem = entry.stem
+                    parts = stem.split('_', 1)
+                    date = parts[0] if len(parts) > 1 else ''
+                    title = parts[1] if len(parts) > 1 else stem
+                    
+                    # Read content
+                    with open(entry, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        
+                    notifications.append({
+                        'filename': entry.name,
+                        'title': title,
+                        'date': date,
+                        'content': content,
+                        'path': str(entry)
+                    })
+                except Exception as e:
+                    gui_logger.error(f"Error parsing notification {entry}: {e}")
+            
+            # Sort by date descending
+            notifications.sort(key=lambda x: x['date'], reverse=True)
+            
+            return {'success': True, 'notifications': notifications}
+        except Exception as e:
+            gui_logger.error(f"Failed to get notifications: {e}")
             return {'success': False, 'error': str(e)}
 
 def main():

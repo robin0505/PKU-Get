@@ -70,7 +70,7 @@ def main():
         "--windowed",  # No console window
         "--onefile",   # Single executable
         f"--add-data=gui/dist{';' if sys.platform == 'win32' else ':'}gui/dist",
-        "--icon=gui/public/vite.svg" if (project_root / "gui/public/vite.svg").exists() else "",
+        # Note: icon removed - SVG not supported, would need ICO format
         "--clean",
         "gui.py"
     ]

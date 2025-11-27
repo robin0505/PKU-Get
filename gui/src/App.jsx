@@ -1328,6 +1328,10 @@ function App() {
                     <div className="text-3xl font-bold">{currentReport.summary.failed}</div>
                     <div className="text-xs opacity-90">{t('failed', lang)}</div>
                   </div>
+                  <div className="bg-white/20 rounded-lg p-3">
+                    <div className="text-3xl font-bold">{currentReport.summary.notifications_new || 0}</div>
+                    <div className="text-xs opacity-90">{t('newNotifications', lang)}</div>
+                  </div>
                 </div>
               </div>
 

@@ -126,7 +126,7 @@ class Downloader:
     def __init__(self, session: requests.Session, config):
         self.session = session
         self.config = config
-        self.stats = {'downloaded': 0, 'skipped': 0, 'failed': 0}
+        self.stats = {'downloaded': 0, 'skipped': 0, 'failed': 0, 'notifications_new': 0}
 
         # Sync report tracking
         self.sync_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")

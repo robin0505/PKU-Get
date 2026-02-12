@@ -392,16 +392,63 @@ class PKUAuth:
             # Wait a bit for dynamic content
             time.sleep(2)
             
-            # Find course list - PKU loves their specific IDs
-            course_list = WebDriverWait(self.driver, 25).until(
-                EC.visibility_of_element_located((
-                    By.CSS_SELECTOR, 
-                    "#module\\:_141_1 ul.portletList-img.courseListing"
-                ))
-            )
+            # 1. 首先提取学生课程（当前学期的课程）
+            try:
+                course_list = WebDriverWait(self.driver, 25).until(
+                    EC.visibility_of_element_located((
+                        By.CSS_SELECTOR, 
+                        "#module\\:_141_1 ul.portletList-img.courseListing"
+                    ))
+                )
+                student_courses = self._extract_courses_from_list(course_list)
+                courses.extend(student_courses)
+                logger.info(f"Found {len(student_courses)} student courses")
+            except Exception as e:
+                logger.warning(f"Failed to extract student courses: {e}")
             
+            # 2. 然后提取助教课程
+            try:
+                # 查找助教课程区域
+                ta_sections = self.driver.find_elements(By.XPATH, "//h3[contains(text(), '在以下课程中，您是助教')]/following-sibling::ul[contains(@class, 'courseListing')]")
+                for ta_section in ta_sections:
+                    ta_courses = self._extract_courses_from_list(ta_section)
+                    # 为助教课程添加标记
+                    for course in ta_courses:
+                        course['is_ta'] = True
+                        course['name'] = f"[助教] {course['name']}"
+                    courses.extend(ta_courses)
+                    logger.info(f"Found {len(ta_courses)} TA courses")
+            except Exception as e:
+                logger.warning(f"Failed to extract TA courses: {e}")
+            
+            # 3. 查找所有其他可能的课程列表（作为备选）
+            try:
+                # 查找 module:_141_1 中的所有课程列表（不只是第一个）
+                all_course_lists = self.driver.find_elements(By.CSS_SELECTOR, "#module\\:_141_1 ul.portletList-img.courseListing")
+                for i, course_list in enumerate(all_course_lists):
+                    if i == 0:  # 跳过第一个，已经处理过了
+                        continue
+                    additional_courses = self._extract_courses_from_list(course_list)
+                    # 检查是否已经在列表中，避免重复
+                    for course in additional_courses:
+                        if not any(c['id'] == course['id'] for c in courses):
+                            courses.append(course)
+                logger.info(f"Total courses found: {len(courses)}")
+            except Exception as e:
+                logger.warning(f"Failed to extract additional courses: {e}")
+                
+        except Exception as e:
+            logger.error(f"Error extracting courses: {e}")
+        
+        return courses
+    
+    def _extract_courses_from_list(self, course_list_element) -> List[Dict]:
+        """从课程列表元素中提取课程信息"""
+        courses = []
+        
+        try:
             # Get all course links
-            links = course_list.find_elements(By.CSS_SELECTOR, 'li a')
+            links = course_list_element.find_elements(By.CSS_SELECTOR, 'li a')
             
             for link in links:
                 raw = link.text.strip()
@@ -411,7 +458,7 @@ class PKUAuth:
                 paren_pos = raw.find('(', start)
                 end = paren_pos if paren_pos != -1 else len(raw)
                 name = raw[start:end].strip()
-                print(name)
+                
                 url = link.get_attribute('href')
                 # Extract course ID from URL
                 course_id = None
@@ -431,10 +478,8 @@ class PKUAuth:
                         'id': course_id,
                         'url': urljoin(self.driver.current_url, url)
                     })
-        except TimeoutException:
-            logger.error("Failed to find course list. PKU probably changed their HTML again.")
         except Exception as e:
-            logger.error(f"Error extracting courses: {e}")
+            logger.error(f"Error extracting courses from list: {e}")
         
         return courses
     

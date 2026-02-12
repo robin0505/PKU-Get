@@ -96,6 +96,8 @@ def main():
     parser.add_argument('config', nargs='?', default=None, help='Path to config file')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be downloaded')
     parser.add_argument('--course', help='Download specific course by ID')
+    parser.add_argument('--tabs', help='Comma-separated list of tabs to download (e.g., "教学内容,作业")')
+    parser.add_argument('--all-tabs', action='store_true', help='Download all available tabs')
     args = parser.parse_args()
     
     config_file_path = args.config
@@ -186,6 +188,38 @@ def main():
         for course in courses:
             prefs = course_preferences.get(course.get('id'), {})
             course.update(prefs)
+
+        # Fetch course metadata to get available tabs
+        logger.info("Fetching course metadata...")
+        downloader = Downloader(session, config)
+        courses = downloader.fetch_metadata(courses)
+        logger.info(f"Fetched metadata for {len(courses)} courses")
+
+        # Handle command line tab selection
+        if args.all_tabs:
+            # Download all available tabs
+            logger.info("Command line: Downloading all available tabs")
+            for course in courses:
+                if 'available_tabs' in course and course['available_tabs']:
+                    course['selected_tabs'] = course['available_tabs']
+                    logger.info(f"  {course['name']}: {', '.join(course['available_tabs'])}")
+                else:
+                    logger.warning(f"No available tabs found for course {course.get('name')}")
+        elif args.tabs:
+            # Download specific tabs from command line
+            selected_tabs_list = [tab.strip() for tab in args.tabs.split(',')]
+            logger.info(f"Command line: Downloading tabs: {', '.join(selected_tabs_list)}")
+            for course in courses:
+                course['selected_tabs'] = selected_tabs_list
+        else:
+            # Use existing selected_tabs from config (may be empty)
+            logger.info("Using tab selection from config file")
+            for course in courses:
+                selected = course.get('selected_tabs', [])
+                if selected:
+                    logger.info(f"  {course['name']}: {', '.join(selected)}")
+                else:
+                    logger.info(f"  {course['name']}: No tabs selected")
 
         skipped_ids = {c['id'] for c in courses if c.get('skip')}
 

@@ -35,7 +35,7 @@ def get_driver(browser: str = 'edge', headless: bool = True):
     # 只要不是 Mac Safari，默认都走 Edge 逻辑
     if b == 'firefox':
         return _get_firefox(headless)
-    elif b == 'chrome':
+    elif b == 'chrome' or b == 'chromium':
         return _get_chrome(headless)
 
     return _get_edge(headless)
@@ -121,23 +121,122 @@ def _get_edge(headless: bool = True):
 def _get_chrome(headless: bool = True):
     """Initialize Chrome WebDriver."""
     options = webdriver.ChromeOptions()
-    if headless: options.add_argument('--headless')
+    if headless: 
+        options.add_argument('--headless=new')  # 使用新的headless模式
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1280,800')
     options.add_argument('--log-level=3')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    
+    # SSH环境必需的参数
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-plugins')
+    options.add_argument('--disable-images')  # 加速启动
+    options.add_argument('--disable-background-timer-throttling')
+    options.add_argument('--disable-backgrounding-occluded-windows')
+    options.add_argument('--disable-renderer-backgrounding')
+    options.add_argument('--disable-features=TranslateUI')
+    options.add_argument('--disable-ipc-flooding-protection')
+    options.add_argument('--remote-debugging-port=9222')  # SSH环境调试端口
+    
+    # 强制使用 Chromium 并禁用版本检查
+    if platform.system() == 'Linux':
+        try:
+            import subprocess
+            chromium_path = subprocess.check_output(['which', 'chromium-browser'], text=True).strip()
+            options.binary_location = chromium_path
+            logger.info(f"使用 Chromium: {chromium_path}")
+        except Exception as e:
+            logger.warning(f"无法找到 Chromium: {e}")
 
-    service = ChromeService(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.implicitly_wait(5)
-    return driver
+    try:
+        # 添加额外的选项来处理版本不匹配
+        options.add_argument('--ignore-certificate-errors')
+        options.add_argument('--ignore-ssl-errors')
+        options.add_argument('--ignore-certificate-errors-spki-list')
+        options.add_argument('--disable-web-security')
+        options.add_argument('--allow-running-insecure-content')
+        
+        # 策略1: 尝试使用系统自动检测（最兼容的方案）
+        try:
+            logger.info("尝试使用系统自动检测的驱动")
+            driver = webdriver.Chrome(options=options)
+            driver.implicitly_wait(5)
+            logger.info("系统驱动启动成功")
+            return driver
+        except Exception as sys_error:
+            logger.warning(f"系统驱动失败: {sys_error}")
+            
+        # 策略2: 尝试使用 WebDriver Manager（适用于有网络的环境）
+        try:
+            logger.info("尝试使用 WebDriver Manager（可能需要下载驱动）")
+            import os
+            # 设置较短的超时时间，避免长时间卡住
+            os.environ['WDM_TIMEOUT'] = '15'
+            os.environ['WDM_LOG'] = '0'  # 减少日志输出
+            
+            service = ChromeService(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.implicitly_wait(5)
+            logger.info("WebDriver Manager 启动成功")
+            return driver
+        except Exception as wdm_error:
+            logger.warning(f"WebDriver Manager 失败: {wdm_error}")
+            
+        # 策略2: 尝试使用系统自动检测（适用于有系统驱动的用户）
+        try:
+            logger.info("尝试使用系统自动检测的驱动")
+            driver = webdriver.Chrome(options=options)
+            driver.implicitly_wait(5)
+            logger.info("系统驱动启动成功")
+            return driver
+        except Exception as sys_error:
+            logger.warning(f"系统驱动失败: {sys_error}")
+            
+        # 策略3: 尝试常见驱动路径（最后的备选方案）
+        common_driver_paths = [
+            '/usr/bin/chromedriver',
+            '/usr/local/bin/chromedriver',
+            '/opt/homebrew/bin/chromedriver',  # macOS
+            'C:\\chromedriver\\chromedriver.exe',  # Windows
+        ]
+        
+        for driver_path in common_driver_paths:
+            try:
+                if os.path.exists(driver_path):
+                    logger.info(f"尝试使用驱动路径: {driver_path}")
+                    service = ChromeService(executable_path=driver_path)
+                    driver = webdriver.Chrome(service=service, options=options)
+                    driver.implicitly_wait(5)
+                    logger.info(f"使用 {driver_path} 启动成功")
+                    return driver
+            except Exception as path_error:
+                logger.debug(f"驱动路径 {driver_path} 失败: {path_error}")
+                continue
+        
+        # 所有策略都失败了
+        raise Exception("所有 Chrome 驱动启动策略都失败了。请尝试：1) 安装 chromedriver，2) 使用 Firefox 浏览器")
+        
+    except Exception as e:
+        logger.error(f"Chrome WebDriver 启动失败: {e}")
+        raise
 
 def _get_firefox(headless: bool = True):
     """Initialize Firefox WebDriver."""
     options = webdriver.FirefoxOptions()
-    if headless: options.add_argument('--headless')
+    if headless: 
+        options.add_argument('--headless')
     options.add_argument('--width=1280')
     options.add_argument('--height=800')
+    
+    # SSH环境优化参数
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.set_preference("browser.link.open_newwindow", 3)
+    options.set_preference("browser.link.open_newwindow.restriction", 0)
+    options.set_preference("dom.disable_open_during_load", False)
 
     service = FirefoxService(GeckoDriverManager().install())
     driver = webdriver.Firefox(service=service, options=options)

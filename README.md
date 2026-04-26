@@ -1,6 +1,6 @@
 # PKU-Get | 未名拾课
 
-停止手动下载课程资料。让 PKU-Get 帮你完成这件事。
+停止点击一千次下载。让 PKU-Get 帮你完成这件事。
 
 ![image-20251124174414777](./gui/public/1.png)
 
@@ -31,8 +31,6 @@
 - 实时下载进度追踪
 - 一目了然的文件统计
 
-![image-20251124175243472](./gui/public/2.png)
-
 #### ⚡ **智能下载引擎**
 - **并发下载**: 同时下载多个文件，速度飞快
 - **智能去重**: 自动识别已下载文件，避免重复
@@ -43,6 +41,7 @@
 - 选择特定标签页（作业、课件、公告等）
 - 一键启用/禁用课程
 - 本地文件夹快速访问
+- **助教课程支持**: 自动识别并标记助教课程，访问更多教学资源
 
 #### 🌐 **多浏览器支持**
 支持 Chrome、Firefox、Edge、Safari，根据你的系统自动选择最佳浏览器。
@@ -56,7 +55,6 @@
    - Windows: PKU-Get-Setup.exe
    - macOS: PKU-Get.dmg
 
-
 2. **首次运行**
    
    - 输入你的北大学号和密码
@@ -68,6 +66,36 @@
    - 配置下载选项
    - 坐等资料自动下载完成
 
+### 💻 命令行使用
+
+PKU-Get 也支持命令行操作，适合自动化和高级用户：
+
+```bash
+# 基本使用
+python main.py
+
+# 下载所有可用标签页
+python main.py --all-tabs
+
+# 下载特定标签页
+python main.py --tabs "教学内容,课程作业"
+
+# 只下载特定课程
+python main.py --course _86268_1
+
+# 预览模式（不实际下载）
+python main.py --dry-run
+
+# 组合使用
+python main.py --course _86268_1 --tabs "教学内容,课程作业" --dry-run
+```
+
+**命令行选项**：
+- `--all-tabs`: 下载所有可用的标签页
+- `--tabs "标签1,标签2"`: 下载指定的标签页（逗号分隔）
+- `--course COURSE_ID`: 只下载指定ID的课程
+- `--dry-run`: 预览模式，显示将要下载的内容但不实际下载
+
 ### 🎯 高级功能
 
 #### 同步历史记录
@@ -76,8 +104,6 @@
 - ✅ 成功下载的文件列表
 - ⏭️ 跳过的文件（已存在）
 - ❌ 失败的文件及错误信息
-
-![image-20251124175628641](./gui/public/3.png)
 
 #### 文件管理
 
@@ -111,15 +137,13 @@ PKU-AutoDownloader/
 
 ### 🤝 常见问题
 
-<details>
-<summary><b>Q: 我的密码安全吗？</b></summary>
+Q: 我的密码安全吗？
 
 A: 密码仅存储在本地配置文件中，不会上传到任何服务器。建议设置适当的文件权限保护配置文件。
 
-<details>
-<summary><b>Q: MacOS上报错：You must enable 'Allow remote automation'</b></summary>
+Q: MacOS上报错：You must enable 'Allow remote automation'
 
-MacOS上需要额外的设置。
+A: MacOS上需要额外的设置。
 1. 打开开发者模式
 - 首先打开我的浏览器(Safari),默认情况下没有打开开发者模式
 - 点击左上角的Safari选择偏好设置
@@ -132,20 +156,39 @@ MacOS上需要额外的设置。
 详细教程参见：https://blog.csdn.net/weixin_44786530/article/details/129729261
 
 
-<details>
-<summary><b>Q: 支持哪些浏览器？</b></summary>
+Q: 支持哪些浏览器？
 
 A: Chrome、Firefox、Edge 和 Safari。由于众所周知的原因Chrome的驱动可能难以下载，建议Windows用户优先选择Edge。
 
-<details>
-<summary><b>Q: 下载失败怎么办？</b></summary>
+Q: 如何下载助教课程？
 
+A: PKU-Get 会自动识别你的助教课程并在课程名前标记 `[助教]`。助教课程包含更多教学资源（如学生成果、教学反思等），使用 `--all-tabs` 选项可以下载所有可用内容。
+
+Q: 为什么提示 "No tabs selected"？
+
+A: 这是因为没有选择要下载的标签页。可以使用 `--all-tabs` 下载所有标签页，或使用 `--tabs "标签名"` 指定特定标签页。
+
+Q: 下载失败怎么办？
+
+A:
 1. 确认浏览器驱动已正确安装
 2. 尝试重启
 3. 把日志发给我（
 
-<details>
-<summary><b>Q: 可以定时自动同步吗？</b></summary>
+Q: Chrome/Chromium 驱动问题如何解决？
+
+A: PKU-Get 会自动尝试多种驱动策略：
+1. 优先使用系统自动检测的驱动
+2. 备选使用 WebDriver Manager 下载
+3. 最后尝试常见驱动路径
+
+如果仍有问题，可以：
+- Linux: `sudo apt install chromium-chromedriver`
+- macOS: `brew install chromedriver`
+- Windows: 下载 ChromeDriver 并放到 PATH 中
+- 或使用 Firefox 浏览器作为备选方案
+
+Q: 可以定时自动同步吗？
 
 A: 在设置中启用"启动时自动同步"，或使用系统定时任务（如 cron）定期运行命令行版本。
 
@@ -159,7 +202,8 @@ A: 在设置中启用"启动时自动同步"，或使用系统定时任务（如
 
 ### 💖 致谢
 
-感谢Claude和Gemeni对本项目的大力支持。
+感谢我的朋友们的友情测试！
+感谢Claude和Gemeni对本项目的大力支持！
 
 如果这个项目对你有帮助，请给个 ⭐️ 支持一下！
 
@@ -185,8 +229,6 @@ Tired of:
 - Real-time download progress tracking
 - Clear file statistics at a glance
 
-![image-20251124175243472](C:\Users\robin\AppData\Roaming\Typora\typora-user-images\image-20251124175243472.png)
-
 #### ⚡ **Smart Download Engine**
 - **Concurrent downloads**: Download multiple files simultaneously for blazing speed
 - **Smart deduplication**: Automatically detect and skip existing files
@@ -197,6 +239,7 @@ Tired of:
 - Select specific tabs (Homework, Courseware, Announcements, etc.)
 - Enable/disable courses with one click
 - Quick access to local folders
+- **TA Course Support**: Automatically identify and mark TA courses with access to additional teaching resources
 
 #### 🌐 **Multi-Browser Support**
 Supports Chrome, Firefox, Edge, and Safari. Automatically selects the best browser for your system.
@@ -221,6 +264,36 @@ Supports Chrome, Firefox, Edge, and Safari. Automatically selects the best brows
    - Select courses to sync
    - Configure download options
    - Sit back and let PKU-Get do the work
+
+### 💻 Command Line Usage
+
+PKU-Get also supports command line operations for automation and advanced users:
+
+```bash
+# Basic usage
+python main.py
+
+# Download all available tabs
+python main.py --all-tabs
+
+# Download specific tabs
+python main.py --tabs "教学内容,课程作业"
+
+# Download specific course only
+python main.py --course _86268_1
+
+# Preview mode (don't actually download)
+python main.py --dry-run
+
+# Combine options
+python main.py --course _86268_1 --tabs "教学内容,课程作业" --dry-run
+```
+
+**Command Line Options**:
+- `--all-tabs`: Download all available tabs
+- `--tabs "tab1,tab2"`: Download specific tabs (comma-separated)
+- `--course COURSE_ID`: Download only the specified course
+- `--dry-run`: Preview mode, show what would be downloaded without actually downloading
 
 ### 🎯 Advanced Features
 
@@ -263,15 +336,13 @@ PKU-AutoDownloader/
 
 ### 🤝 FAQ
 
-<details>
-<summary><b>Q: Is my password safe?</b></summary>
+Q: Is my password safe?
 
 A: Your password is stored only in the local config file and never uploaded to any server. It's recommended to set appropriate file permissions to protect your config.
 
-<details>
-<summary><b>Q: macOS Error: You must enable 'Allow remote automation'</b></summary>
+Q: macOS Error: You must enable 'Allow remote automation'
 
-Additional setup is required on macOS:
+A: Additional setup is required on macOS:
 1. Enable Developer Mode
 - First, open Safari (developer mode is disabled by default)
 - Click Safari in the menu bar and select Preferences
@@ -284,20 +355,25 @@ Additional setup is required on macOS:
 For detailed tutorial, see: https://blog.csdn.net/weixin_44786530/article/details/129729261
 
 
-<details>
-<summary><b>Q: Which browsers are supported?</b></summary>
+Q: Which browsers are supported?
 
 A: Chrome, Firefox, Edge, and Safari. Due to well-known reasons, Chrome drivers may be difficult to download. Windows users are recommended to use Edge.
 
-<details>
-<summary><b>Q: What if downloads fail?</b></summary>
+Q: How do I download TA courses?
+
+A: PKU-Get automatically identifies your TA courses and marks them with `[TA]` prefix. TA courses contain additional teaching resources (like student work, teaching reflections, etc.). Use `--all-tabs` option to download all available content.
+
+Q: Why does it say "No tabs selected"?
+
+A: This means no tabs have been selected for download. Use `--all-tabs` to download all tabs, or use `--tabs "tab_name"` to specify specific tabs.
+
+Q: What if downloads fail?
 
 1. Verify browser drivers are installed correctly
 2. Try restarting the application
 3. Send me the logs (
 
-<details>
-<summary><b>Q: Can I schedule automatic syncs?</b></summary>
+Q: Can I schedule automatic syncs?
 
 A: Enable "Auto-sync on startup" in settings, or use system schedulers (like cron) to run the CLI version periodically.
 

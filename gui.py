@@ -91,7 +91,9 @@ class Api:
         self.courses = []
         self.session = None
         self.driver = None
+        self._cookies_path = self._config_path.parent / 'session_cookies.json'
         self._pending_config = None  # 🔑 用于延迟保存配置，只在登录成功后保存
+        self._load_session_cookies()
 
     def set_window(self, window):
         self._window = window
@@ -121,7 +123,68 @@ class Api:
                 json.dump(current, f)
         except Exception as e:
             gui_logger.error(f"Failed to save state: {e}")
+    def _save_session_cookies(self):
+        """保存session cookies到文件"""
+        if not self.session:
+            return
+        try:
+            cookies_data = {
+                'cookies': self.session.cookies.get_dict(),
+                'headers': dict(self.session.headers),
+                'saved_at': datetime.now().isoformat()
+            }
+            
+            with open(self._cookies_path, 'w', encoding='utf-8') as f:
+                json.dump(cookies_data, f, indent=2)
+            
+            gui_logger.info("Session cookies saved successfully")
+        except Exception as e:
+            gui_logger.error(f"Failed to save session cookies: {e}")
 
+    def _load_session_cookies(self):
+        """ 从文件加载session cookies """
+        if not self._cookies_path.exists():
+            gui_logger.debug("No saved session cookies found")
+            return
+        
+        try:
+            with open(self._cookies_path, 'r', encoding='utf-8') as f:
+                cookies_data = json.load(f)
+            
+            # 检查cookies是否过期(超过7天就认为过期)
+            saved_at = datetime.fromisoformat(cookies_data['saved_at'])
+            if (datetime.now() - saved_at).days > 7:
+                gui_logger.info("Saved session cookies expired (>7 days), will need to re-login")
+                return
+            
+            # 创建新session并恢复cookies
+            import requests
+            self.session = requests.Session()
+            
+            # 恢复cookies
+            for name, value in cookies_data['cookies'].items():
+                self.session.cookies.set(name, value)
+            
+            # 恢复headers
+            self.session.headers.update(cookies_data['headers'])
+            
+            gui_logger.info("Loaded saved session cookies successfully")
+            
+            # 🔑 验证session是否仍然有效(尝试访问课程页面)
+            try:
+                response = self.session.get('https://course.pku.edu.cn/webapps/portal/execute/tabs/tabAction', timeout=10)
+                if response.status_code == 200 and 'login' not in response.url.lower():
+                    gui_logger.info("Session cookies are still valid!")
+                else:
+                    gui_logger.warning("Session cookies expired, will need to re-login")
+                    self.session = None
+            except Exception as e:
+                gui_logger.warning(f"Failed to validate session: {e}, will need to re-login")
+                self.session = None
+                
+        except Exception as e:
+            gui_logger.error(f"Failed to load session cookies: {e}")
+            
     def get_init_state(self):
         """Called by frontend on mount to decide which view to show"""
         config = self.load_config()
@@ -173,7 +236,7 @@ class Api:
         """Load existing config or return defaults"""
         try:
             if self._config_path.exists():
-                cfg = Config(str(self._config_path))
+                cfg = Config(str(self._config_path), skip_validation=True)
                 return {
                     'username': cfg.get('username'),
                     'password': cfg.get('password'),
@@ -369,15 +432,17 @@ class Api:
                         gui_logger.info("Login successful, closing browser...")
                         self.driver.quit()
                         self.driver = None
+                    
+                    # 🔑 Save session cookies for next time
+                    self._save_session_cookies()
 
                     # 2. Fetch Metadata (available tabs for each course) - uses session, not browser
                     gui_logger.info("Loading course metadata...")
 
                     # 🔑 If config hasn't been saved yet (first login), save it now before creating Downloader
-                    if self._pending_config and not self._config_path.exists():
-                        gui_logger.info("First login detected, saving config before fetching metadata...")
+                    if self._pending_config:
+                        gui_logger.info("Login successful, saving credentials...")
                         self.save_config(self._pending_config)
-
                     cfg = Config(str(self._config_path))
                     downloader = Downloader(self.session, cfg)
                     self.courses = downloader.fetch_metadata(self.courses)
@@ -513,6 +578,9 @@ class Api:
                             gui_logger.info("Login successful, closing browser...")
                             self.driver.quit()
                             self.driver = None
+                        
+                        # 🔑 Save session cookies for next time
+                        self._save_session_cookies()
 
                     # Filter active courses (not skipped)
                     active_courses = [c for c in self.courses if not c.get('skip', False)]

@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PKU-Get · 未名拾课 — 北大课程自动下载器</title>
+<meta name="description" content="一键同步北大教学网课程资料。自动登录、下载课件/作业/回放，省下时间做更有意义的事。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #060b17;
+  --bg-primary: #0B1120;
+  --bg-card: rgba(30, 41, 59, 0.4);
+  --bg-card-hover: rgba(30, 41, 59, 0.6);
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-card: rgba(255,255,255,0.08);
+  --border-glow: rgba(59,130,246,0.3);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --blue: #3B82F6;
+  --blue-glow: rgba(59,130,246,0.4);
+  --purple: #8B5CF6;
+  --purple-glow: rgba(139,92,246,0.4);
+  --green: #10B981;
+  --green-glow: rgba(16,185,129,0.4);
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --gradient-main: linear-gradient(135deg, #3B82F6 0%, #6366f1 40%, #8B5CF6 70%, #a855f7 100%);
+  --gradient-subtle: linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(139,92,246,0.15) 100%);
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grid background texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ambient glow orbs */
+.ambient-orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.3;
+}
+.ambient-orb--blue {
+  width: 600px; height: 600px;
+  background: var(--blue);
+  top: -200px; right: -150px;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+.ambient-orb--purple {
+  width: 500px; height: 500px;
+  background: var(--purple);
+  bottom: -150px; left: -100px;
+  animation: orbFloat 10s ease-in-out infinite reverse;
+}
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 10px) scale(0.95); }
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Navigation */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(6, 11, 23, 0.7);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.nav-brand-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--gradient-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.nav-links {
+  display: flex;
+  gap: 32px;
+  list-style: none;
+}
+.nav-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text-primary); }
+.nav-cta {
+  background: var(--gradient-main);
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.nav-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+
+/* Section styles */
+.section {
+  padding: 100px 0;
+  position: relative;
+}
+.section-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--blue);
+  background: rgba(59,130,246,0.1);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+}
+.section-subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 560px;
+}
+
+/* Hero */
+.hero {
+  padding: 140px 0 80px;
+  position: relative;
+  z-index: 1;
+}
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.2);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  margin-bottom: 24px;
+}
+.hero-badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.hero-title {
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin-bottom: 20px;
+}
+.hero-title-gradient {
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-subtitle {
+  font-size: clamp(16px, 2vw, 20px);
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin-bottom: 36px;
+  line-height: 1.6;
+}
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--gradient-main);
+  color: white;
+  box-shadow: 0 4px 24px rgba(59,130,246,0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(59,130,246,0.45);
+}
+.btn-secondary {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  border: 1px solid var(--border-card);
+}
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.hero-preview {
+  margin-top: 60px;
+  position: relative;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.preview-window {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(59,130,246,0.1);
+}
+.preview-titlebar {
+  background: rgba(255,255,255,0.03);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.preview-dot { width: 10px; height: 10px; border-radius: 50%; }
+.preview-dot--red { background: #ef4444; }
+.preview-dot--amber { background: #f59e0b; }
+.preview-dot--green { background: #10B981; }
+.preview-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.preview-body {
+  padding: 24px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.preview-sidebar {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.preview-nav-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.preview-nav-item--active {
+  background: rgba(59,130,246,0.15);
+  color: var(--blue);
+}
+.preview-nav-icon {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.preview-main {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.preview-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.preview-header-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.preview-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.preview-badge--green {
+  background: rgba(16,185,129,0.15);
+  color: var(--green);
+}
+.preview-stats {
+  display: flex;
+  gap: 12px;
+}
+.preview-stat {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+  flex: 1;
+}
+.preview-stat-value { font-size: 22px; font-weight: 700; }
+.preview-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.preview-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.preview-card-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--gradient-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.preview-card-info { flex: 1; }
+.preview-card-name { font-size: 14px; font-weight: 600; }
+.preview-card-meta { font-size: 11px; color: var(--text-muted); }
+.preview-card-status {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+.preview-progress {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.preview-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.preview-progress-fill {
+  height: 100%;
+  width: 65%;
+  background: var(--gradient-main);
+  border-radius: 2px;
+  animation: progressPulse 2s ease-in-out infinite;
+}
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Features */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 48px;
+}
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--gradient-main);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.feature-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-card);
+  transform: translateY(-2px);
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+.feature-icon--blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.feature-icon--purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+.feature-icon--green { background: rgba(16,185,129,0.15); color: var(--green); }
+.feature-icon--amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.feature-icon--red { background: rgba(239,68,68,0.15); color: var(--red); }
+.feature-icon--cyan { background: rgba(6,182,212,0.15); color: #06b6d4; }
+.feature-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+.feature-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* How it works */
+.steps {
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.step {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.step-number-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+.step-number {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--gradient-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 20px rgba(59,130,246,0.3);
+}
+.step-line {
+  width: 2px;
+  flex: 1;
+  min-height: 40px;
+  background: linear-gradient(to bottom, rgba(59,130,246,0.4), rgba(139,92,246,0.1));
+  margin: 8px 0;
+}
+.step-content {
+  padding-bottom: 48px;
+}
+.step-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+.step-content p {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 480px;
+}
+.step:last-child .step-line { display: none; }
+.step:last-child .step-content { padding-bottom: 0; }
+
+/* Interface showcase */
+.interface-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 24px;
+  margin-top: 48px;
+}
+.interface-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.interface-card:hover {
+  border-color: var(--border-card);
+  transform: translateY(-2px);
+}
+.interface-card-header {
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.interface-card-body {
+  padding: 20px;
+}
+.interface-card-body h4 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.interface-card-body p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.interface-mock {
+  margin-top: 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+.mock-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mock-chip {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.mock-chip--active { background: rgba(59,130,246,0.2); color: var(--blue); }
+.mock-chip--inactive { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+.mock-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.mock-bar {
+  flex: 1; height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mock-bar-fill {
+  height: 100%;
+  background: var(--gradient-main);
+  border-radius: 2px;
+}
+.mock-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mock-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.03);
+}
+.mock-file-icon { opacity: 0.4; font-size: 14px; }
+.mock-file-status {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+}
+.mock-file-status--ok { color: var(--green); }
+.mock-file-status--skip { color: var(--text-muted); }
+.mock-file-status--fail { color: var(--red); }
+
+/* Tech stack */
+.tech-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 40px;
+}
+.tech-tag {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+.tech-tag:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--border-card);
+  color: var(--text-primary);
+}
+
+/* Download section */
+.download-section {
+  background: var(--gradient-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 48px;
+  margin-top: 48px;
+  text-align: center;
+}
+.download-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.download-subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+.download-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.download-version {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 16px;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 48px 0;
+  text-align: center;
+}
+.footer-text {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.footer-text a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-text a:hover { color: var(--text-primary); }
+
+/* Visible-on-scroll animations */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .section { padding: 64px 0; }
+  .hero { padding: 120px 0 48px; }
+  .nav-links { display: none; }
+  .preview-sidebar { display: none; }
+  .features-grid { grid-template-columns: 1fr; }
+  .interface-grid { grid-template-columns: 1fr; }
+  .download-section { padding: 32px 20px; }
+  .step { gap: 16px; }
+}
+
+/* Selection color */
+::selection {
+  background: rgba(59,130,246,0.3);
+  color: white;
+}
+</style>
+</head>
+<body>
+
+<div class="ambient-orb ambient-orb--blue"></div>
+<div class="ambient-orb ambient-orb--purple"></div>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <div class="nav-brand-icon">📦</div>
+      PKU-Get
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">功能特性</a></li>
+      <li><a href="#how-it-works">使用流程</a></li>
+      <li><a href="#interface">界面展示</a></li>
+      <li><a href="#download">下载</a></li>
+    </ul>
+    <a href="https://github.com/robin0505/PKU-Get" class="nav-cta" target="_blank">GitHub</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container hero-content">
+    <div class="hero-badge reveal">
+      <span class="hero-badge-dot"></span>
+      v3.0.11 — 持续维护中
+    </div>
+    <h1 class="hero-title reveal">
+      <span class="hero-title-gradient">PKU-Get</span><br>
+      <span style="font-size:0.55em; font-weight:600; color: var(--text-secondary);">未名拾课</span>
+    </h1>
+    <p class="hero-subtitle reveal">
+      在北大教学网手动点1000次下载?<br>
+      一键同步所有课程资料——课件、作业、录播回放，全自动搞定。
+    </p>
+    <div class="hero-actions reveal">
+      <a href="https://gitee.com/robin-pan/pku-get/releases" class="btn btn-primary" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下载 Windows 版
+      </a>
+      <a href="https://github.com/robin0505/PKU-Get" class="btn btn-secondary" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+        在 GitHub 上查看
+      </a>
+    </div>
+
+    <!-- App preview mockup -->
+    <div class="hero-preview reveal">
+      <div class="preview-window">
+        <div class="preview-titlebar">
+          <span class="preview-dot preview-dot--red"></span>
+          <span class="preview-dot preview-dot--amber"></span>
+          <span class="preview-dot preview-dot--green"></span>
+          <span class="preview-title">PKU-Get — 课程面板</span>
+        </div>
+        <div class="preview-body">
+          <div class="preview-sidebar">
+            <div class="preview-nav-item preview-nav-item--active">
+              <span class="preview-nav-icon"></span> 课程面板
+            </div>
+            <div class="preview-nav-item">
+              <span class="preview-nav-icon"></span> 作业中心
+            </div>
+            <div class="preview-nav-item">
+              <span class="preview-nav-icon"></span> 设置
+            </div>
+          </div>
+          <div class="preview-main">
+            <div class="preview-header-row">
+              <div class="preview-header-title">PKU-Get</div>
+              <div class="preview-badge preview-badge--green">空闲</div>
+            </div>
+            <div class="preview-stats">
+              <div class="preview-stat">
+                <div class="preview-stat-value" style="color:var(--green)">128</div>
+                <div class="preview-stat-label">已下载</div>
+              </div>
+              <div class="preview-stat">
+                <div class="preview-stat-value" style="color:var(--text-muted)">43</div>
+                <div class="preview-stat-label">已跳过</div>
+              </div>
+              <div class="preview-stat">
+                <div class="preview-stat-value" style="color:var(--red)">2</div>
+                <div class="preview-stat-label">失败</div>
+              </div>
+            </div>
+            <div class="preview-card">
+              <div class="preview-card-icon">📐</div>
+              <div class="preview-card-info">
+                <div class="preview-card-name">高等数学</div>
+                <div class="preview-card-meta">24 个文件 · 上次同步：2小时前</div>
+              </div>
+              <div class="preview-card-status"></div>
+            </div>
+            <div class="preview-card">
+              <div class="preview-card-icon">⚛️</div>
+              <div class="preview-card-info">
+                <div class="preview-card-name">量子力学</div>
+                <div class="preview-card-meta">18 个文件 · 上次同步：2小时前</div>
+              </div>
+              <div class="preview-card-status"></div>
+            </div>
+            <div class="preview-progress">
+              <span>📥 同步中...</span>
+              <div class="preview-progress-bar">
+                <div class="preview-progress-fill"></div>
+              </div>
+              <span>65%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-label reveal">核心功能</div>
+    <h2 class="section-title reveal">告别手动点击，<br>一键同步所有资料</h2>
+    <p class="section-subtitle reveal">
+      从登录教学网，到课件下载，再到作业提交，全程自动搞定，你只需要坐等文件到齐。
+    </p>
+
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+        </div>
+        <h3>一键自动登录</h3>
+        <p>输入学号和密码，剩下的交给我们。自动完成北大 IAAA 统一认证，无需每次手动打开教学网、点来点去。</p>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--purple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><polyline points="8 12 11 15 16 10"/></svg>
+        </div>
+        <h3>批量极速下载</h3>
+        <p>所有课件、作业、公告一次性打包下载，多个文件同时下载不排队。已经下过的文件自动跳过，不会浪费流量。</p>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><polyline points="12 12 12 12"/><path d="M8 16h8"/></svg>
+        </div>
+        <h3>课程回放离线看</h3>
+        <p>把北大在线课堂的录播视频下载到电脑上，断网也能随时复习，不再受限于卡顿的在线播放。</p>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--amber">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <h3>作业一站式管理</h3>
+        <p>所有课程的作业集中展示，截止日期一目了然。下载作业附件、上传提交作业，不用在各个课程页面之间反复跳转。</p>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--cyan">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <h3>自动保持最新</h3>
+        <p>软件会自动检查新版本，一键更新，再也不用去网站找最新版下载链接。省心省力，始终享受最新功能。</p>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon feature-icon--red">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <h3>按需自由定制</h3>
+        <p>想下哪门课就勾哪门课，想下哪个板块就选哪个板块。还可以给课程起别名、设置独立下载目录，完全按你的习惯来。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section" id="how-it-works" style="padding-top:0;">
+  <div class="container">
+    <div class="section-label reveal">使用流程</div>
+    <h2 class="section-title reveal">从登录到下载，<br>只需几秒钟</h2>
+    <p class="section-subtitle reveal">
+      简单四步，从零到全部课程资料同步完成。
+    </p>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-number-col">
+          <div class="step-number">1</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>登录北大 IAAA 统一认证</h3>
+          <p>输入学号和密码，一次配置长期有效。双引擎系统通过北大 IAAA 统一认证门户完成身份验证——HTTP 直连优先保证速度，浏览器模式兜底保证可靠性。</p>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-number-col">
+          <div class="step-number">2</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>自动发现所有课程</h3>
+          <p>引擎自动抓取你的 Blackboard 账户，列出所有已选课程。每门课程展示文件数量、可用标签页（教学内容、作业、公告等）以及回放视频的可用情况。</p>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-number-col">
+          <div class="step-number">3</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>个性化定制同步范围</h3>
+          <p>自由开启/关闭课程同步，选择需要下载的标签页，为课程设置自定义别名。历史课程自动归档，每门课程的偏好设置跨会话持久保留。</p>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-number-col">
+          <div class="step-number">4</div>
+        </div>
+        <div class="step-content">
+          <h3>一键同步</h3>
+          <p>点击"开始同步"，实时查看下载进度。文件并发下载，已存在的文件智能跳过，同步完成后生成详细报告，清晰展示已下载、已跳过和失败的文件列表。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Interface showcase -->
+<section class="section" id="interface" style="padding-top:0;">
+  <div class="container">
+    <div class="section-label reveal">界面展示</div>
+    <h2 class="section-title reveal">颜值与实力并存<br>的桌面应用</h2>
+    <p class="section-subtitle reveal">
+      基于 React 19 和 Tailwind CSS 构建，支持深色/浅色主题切换，响应式布局，流畅动画，中英文界面一键切换。
+    </p>
+
+    <div class="interface-grid">
+      <div class="interface-card reveal">
+        <div class="interface-card-header">
+          <span class="preview-dot preview-dot--red"></span>
+          <span class="preview-dot preview-dot--amber"></span>
+          <span class="preview-dot preview-dot--green"></span>
+        </div>
+        <div class="interface-card-body">
+          <h4>课程管理面板</h4>
+          <p>卡片式课程管理，直观的启用/禁用开关，支持行内编辑别名，按标签页精确控制下载范围。</p>
+          <div class="interface-mock">
+            <div class="mock-row">
+              <span class="mock-chip mock-chip--active">教学内容</span>
+              <span class="mock-chip mock-chip--active">作业</span>
+              <span class="mock-chip mock-chip--inactive">公告</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-secondary);">
+              <span style="color:var(--green);">●</span> 高等数学（24个文件）
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted);margin-top:4px;">
+              <span style="color:var(--text-muted);">●</span> 大学物理（已跳过）
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="interface-card reveal">
+        <div class="interface-card-header">
+          <span class="preview-dot preview-dot--red"></span>
+          <span class="preview-dot preview-dot--amber"></span>
+          <span class="preview-dot preview-dot--green"></span>
+        </div>
+        <div class="interface-card-body">
+          <h4>实时同步进度</h4>
+          <p>多级进度条，实时文件计数，带宽统计，可拖拽调整大小的日志面板，支持暂停/继续和停止操作。</p>
+          <div class="interface-mock">
+            <div class="mock-progress" style="margin-bottom:8px;">
+              <span>📥 高等数学</span>
+              <div class="mock-bar"><div class="mock-bar-fill" style="width:75%"></div></div>
+              <span>9/12</span>
+            </div>
+            <div class="mock-file-list">
+              <div class="mock-file">
+                <span class="mock-file-icon">📄</span> 第5讲-导数与微分.pdf
+                <span class="mock-file-status mock-file-status--ok">✓ 完成</span>
+              </div>
+              <div class="mock-file">
+                <span class="mock-file-icon">📄</span> 作业三-极限计算.pdf
+                <span class="mock-file-status mock-file-status--ok">✓ 完成</span>
+              </div>
+              <div class="mock-file">
+                <span class="mock-file-icon">📦</span> 实验数据.zip
+                <span class="mock-file-status mock-file-status--skip">跳过</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="interface-card reveal">
+        <div class="interface-card-header">
+          <span class="preview-dot preview-dot--red"></span>
+          <span class="preview-dot preview-dot--amber"></span>
+          <span class="preview-dot preview-dot--green"></span>
+        </div>
+        <div class="interface-card-body">
+          <h4>作业管理中心</h4>
+          <p>跨课程浏览所有作业，查看详情、下载附件、提交作业——一站式完成全部作业管理。</p>
+          <div class="interface-mock">
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <div style="flex:1;background:rgba(59,130,246,0.1);padding:8px;border-radius:6px;border:1px solid rgba(59,130,246,0.2);">
+                <div style="font-size:12px;font-weight:600;">习题集五</div>
+                <div style="font-size:10px;color:var(--text-muted);">高等数学 · 截止 4月28日</div>
+                <div style="font-size:10px;color:var(--amber);margin-top:4px;">⏳ 待提交</div>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);">
+              <div style="display:flex;justify-content:space-between;">
+                <span>📎 参考解答.pdf</span>
+                <span style="color:var(--blue);">↓ 下载</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                <span>📤 提交作业</span>
+                <span style="color:var(--green);">选择文件</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="section-label reveal">技术栈</div>
+    <h2 class="section-title reveal">使用现代开源<br>技术构建</h2>
+
+    <div class="tech-list reveal">
+      <span class="tech-tag">Python 3.8+</span>
+      <span class="tech-tag">React 19</span>
+      <span class="tech-tag">Tailwind CSS</span>
+      <span class="tech-tag">Vite</span>
+      <span class="tech-tag">Selenium</span>
+      <span class="tech-tag">BeautifulSoup4</span>
+      <span class="tech-tag">PyWebView</span>
+      <span class="tech-tag">Requests</span>
+      <span class="tech-tag">Framer Motion</span>
+      <span class="tech-tag">PyInstaller</span>
+      <span class="tech-tag">Inno Setup</span>
+      <span class="tech-tag">Lucide Icons</span>
+      <span class="tech-tag">Windows + macOS</span>
+    </div>
+  </div>
+</section>
+
+<!-- Download -->
+<section class="section" id="download" style="padding-top:0;">
+  <div class="container">
+    <div class="download-section reveal">
+      <div class="download-title">准备好告别手动点击了吗？</div>
+      <p class="download-subtitle">
+        下载 PKU-Get Windows 版，macOS 版同步提供。
+        <br>完全免费，开源。
+      </p>
+      <div class="download-buttons">
+        <a href="https://gitee.com/robin-pan/pku-get/releases" class="btn btn-primary" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 Windows 版
+        </a>
+        <a href="https://github.com/robin0505/PKU-Get" class="btn btn-secondary" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          在 GitHub 上查看
+        </a>
+      </div>
+      <p class="download-version">
+        最新版本：v3.0.11 · 支持 Windows 10+ · macOS 11+
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <p class="footer-text">
+      PKU-Get · 未名拾课 — 由
+      <a href="https://github.com/robin0505" target="_blank">@robin0505</a>
+      用 ❤️ 构建
+      &nbsp;·&nbsp;
+      <a href="https://github.com/robin0505/PKU-Get" target="_blank">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://gitee.com/robin-pan/pku-get" target="_blank">Gitee</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal animation
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

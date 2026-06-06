@@ -5,7 +5,7 @@
 ![image-20251124174414777](./gui/public/1.png)
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20-lightgrey.svg)](https://github.com/yourusername/PKU-AutoDownloader)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20-lightgrey.svg)](https://github.com/robin0505/PKU-Get)
 
 [English](#english) | [简体中文](#简体中文)
 
@@ -114,7 +114,7 @@ python main.py --course _86268_1 --tabs "教学内容,课程作业" --dry-run
 ### 🛠️ 技术架构
 
 ```
-PKU-AutoDownloader/
+PKU-Get/
 ├── pku_downloader/          # 核心下载引擎
 │   ├── auth/                # 统一身份认证
 │   ├── browser/             # 浏览器驱动管理
@@ -203,7 +203,7 @@ A: 在设置中启用"启动时自动同步"，或使用系统定时任务（如
 ### 💖 致谢
 
 感谢我的朋友们的友情测试！
-感谢Claude和Gemeni对本项目的大力支持！
+感谢Claude和Gemini对本项目的大力支持！
 
 如果这个项目对你有帮助，请给个 ⭐️ 支持一下！
 
@@ -313,7 +313,7 @@ Each sync generates a detailed report including:
 ### 🛠️ Technical Architecture
 
 ```
-PKU-AutoDownloader/
+PKU-Get/
 ├── pku_downloader/          # Core download engine
 │   ├── auth/                # IAAA authentication
 │   ├── browser/             # Browser driver management
